@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Excel Parser with FilePond</title>
+
+  <!-- FilePond CSS -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/filepond/4.30.4/filepond.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/filepond-plugin-image-preview/4.6.11/filepond-plugin-image-preview.min.css" rel="stylesheet">
+
+  <!-- Tailwind for styling -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    .filepond--drop-label {
+      color: #4F46E5;
+    }
+    .results-table {
+      max-height: 400px;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen p-8">
+<div class="max-w-4xl mx-auto">
+  <h1 class="text-3xl font-bold mb-8 text-gray-800">Excel File Parser</h1>
+
+  <!-- File Upload -->
+  <div class="bg-white rounded-lg shadow p-6 mb-6">
+    <input type="file" class="filepond" name="excel" accept=".xlsx,.xls">
+  </div>
+
+  <!-- Sheet Selection -->
+  <div id="sheetSelector" class="bg-white rounded-lg shadow p-6 mb-6 hidden">
+    <h2 class="text-xl font-semibold mb-4">Select Sheet</h2>
+    <select id="sheetSelect" class="w-full p-2 border rounded">
+      <option value="">Select a sheet...</option>
+    </select>
+  </div>
+
+  <!-- Results -->
+  <div id="results" class="bg-white rounded-lg shadow p-6 hidden">
+    <h2 class="text-xl font-semibold mb-4">Sheet Data</h2>
+    <div class="results-table">
+      <table id="dataTable" class="min-w-full">
+        <thead class="bg-gray-50">
+        <tr id="tableHeader"></tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Scripts -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/filepond/4.30.4/filepond.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<script>
+  // Excel Parser Class
+  class ExcelParser {
+    constructor() {
+      this.workbook = null;
+    }
+
+    async parseFile(file) {
+      try {
+        const data = await file.arrayBuffer();
+        this.workbook = XLSX.read(data, { type: 'array' });
+        return this;
+      } catch (error) {
+        throw new Error(`Failed to parse Excel file: ${error.message}`);
+      }
+    }
+
+    getSheetNames() {
+      if (!this.workbook) throw new Error('No workbook loaded');
+      return this.workbook.SheetNames;
+    }
+
+    getSheetData(sheetName) {
+      if (!this.workbook) throw new Error('No workbook loaded');
+      const worksheet = this.workbook.Sheets[sheetName];
+      return XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+    }
+  }
+
+  // Initialize FilePond
+  const pond = FilePond.create(document.querySelector('input[type="file"]'), {
+    allowMultiple: false,
+    acceptedFileTypes: ['.xlsx', '.xls'],
+    labelIdle: 'Drag & Drop your Excel file or <span class="filepond--label-action">Browse</span>',
+  });
+
+  const parser = new ExcelParser();
+
+  // Handle file upload
+  pond.on('addfile', async (error, file) => {
+    if (error) {
+      console.error('Error adding file:', error);
+      return;
+    }
+
+    try {
+      await parser.parseFile(file.file);
+
+      // Show sheet selector
+      const sheetSelector = document.getElementById('sheetSelector');
+      const sheetSelect = document.getElementById('sheetSelect');
+      sheetSelector.classList.remove('hidden');
+
+      // Populate sheet names
+      const sheetNames = parser.getSheetNames();
+      sheetSelect.innerHTML = '<option value="">Select a sheet...</option>' +
+        sheetNames.map(name => `<option value="${name}">${name}</option>`).join('');
+
+    } catch (error) {
+      console.error('Error parsing file:', error);
+    }
+  });
+
+  // Handle sheet selection
+  document.getElementById('sheetSelect').addEventListener('change', (e) => {
+    const sheetName = e.target.value;
+    if (!sheetName) return;
+
+    const data = parser.getSheetData(sheetName);
+    displayData(data);
+  });
+
+  // Display data in table
+  function displayData(data) {
+    if (!data || !data.length) return;
+
+    const results = document.getElementById('results');
+    const tableHeader = document.getElementById('tableHeader');
+    const tableBody = document.getElementById('tableBody');
+
+    results.classList.remove('hidden');
+
+    // Create header
+    tableHeader.innerHTML = data[0]
+      .map(header => `<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">${header || ''}</th>`)
+      .join('');
+
+    // Create body
+    tableBody.innerHTML = data.slice(1)
+      .map(row => `
+                    <tr class="hover:bg-gray-50">
+                        ${row.map(cell => `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${cell || ''}</td>`).join('')}
+                    </tr>
+                `).join('');
+  }
+</script>
+</body>
+</html>
