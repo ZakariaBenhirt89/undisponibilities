@@ -6,3 +6,4 @@ while (::){
 console.log('fifi')
 console.log('some good changes')
 console.log('fofo')
+console.log('fofo2')
